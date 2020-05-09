@@ -76,7 +76,7 @@ MsgHandleProcessCreate(
 
     if (!pInput->Message.ImagePathLength)
     {
-        wprintf(L"[PROC] Process Created: id = %d, path = NULL\n", pInput->Message.ProcessId);
+        wprintf(L"[PROC][%I64d] Process Created: id = %d, path = NULL\n", pInput->Message.Timestamp.QuadPart, pInput->Message.ProcessId);
         return STATUS_SUCCESS;
     }
 
@@ -95,14 +95,14 @@ MsgHandleProcessCreate(
     PWCHAR cmd = malloc(pInput->Message.CmdLength + sizeof(WCHAR));
     if (!cmd)
     {
-        wprintf(L"[PROC] Process Created: id = %d, path = %s cmd = BAD_ALLOC\n", pInput->Message.ProcessId, path);
+        wprintf(L"[PROC][%I64d] Process Created: id = %d, path = %s cmd = BAD_ALLOC\n",pInput->Message.Timestamp.QuadPart, pInput->Message.ProcessId, path);
         free(path);
         return STATUS_SUCCESS;
     }
 
     memcpy(cmd, &pInput->Message.Data[pInput->Message.ImagePathLength], pInput->Message.CmdLength);
     cmd[pInput->Message.CmdLength >> 1] = L'\0';
-    wprintf(L"[PROC] Process Created: id = %d, path = %s cmd = %s\n", pInput->Message.ProcessId, path, cmd);
+    wprintf(L"[PROC][%I64d] Process Created: id = %d, path = %s cmd = %s\n", pInput->Message.Timestamp.QuadPart, pInput->Message.ProcessId, path, cmd);
     free(path);
     free(cmd);
 
@@ -130,7 +130,7 @@ MsgHandleProcessTerminate(
         return STATUS_INVALID_USER_BUFFER;
     }
 
-    wprintf(L"[PROC] Pid %u terminates. \n", msg->Msg.ProcessId);
+    wprintf(L"[PROC][%I64d] Pid %u terminates. \n",msg->Msg.Timestamp.QuadPart, msg->Msg.ProcessId);
 
     *BytesWritten = 0;
 	return STATUS_SUCCESS;
