@@ -48,7 +48,8 @@ typedef enum _MY_DRIVER_NOTIFICATION_CODE
     notificationProcess = 1,
     notificationThread = 2,
     notificationRegistry = 4, // doar puteri ca sa putem face or rapid
-    notificationFile = 8
+    notificationFile = 8,
+    notificationImage = 16
 }MY_DRIVER_NOTIFICATION_CODE, * PMY_DRIVER_NOTIFICATION_CODE;
 
 #pragma pack (push, 1)
