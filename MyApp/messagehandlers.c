@@ -136,6 +136,60 @@ MsgHandleProcessTerminate(
 	return STATUS_SUCCESS;
 }
 
+_Pre_satisfies_(InputBufferSize >= sizeof(FILTER_MESSAGE_HEADER))
+_Pre_satisfies_(OutputBufferSize >= sizeof(FILTER_REPLY_HEADER))
+NTSTATUS
+MsgHandleGeneric(
+    _In_bytecount_(InputBufferSize) PFILTER_MESSAGE_HEADER InputBuffer,
+    _In_  DWORD InputBufferSize,
+    _Out_writes_bytes_to_opt_(OutputBufferSize, *BytesWritten) PFILTER_REPLY_HEADER OutputBuffer,
+    _In_  DWORD OutputBufferSize,
+    _Out_ PDWORD BytesWritten
+    )
+{
+    PMY_DRIVER_GENERIC_MESSAGE_FULL pInput = (PMY_DRIVER_GENERIC_MESSAGE_FULL)InputBuffer;
+    PMY_DRIVER_PROCESS_CREATE_FULL_MESSAGE_REPLY  pOutput = (PMY_DRIVER_PROCESS_CREATE_FULL_MESSAGE_REPLY)OutputBuffer;
+
+    *BytesWritten = 0;
+    if (InputBufferSize < sizeof(*pInput))
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+
+    if (OutputBufferSize < sizeof(*pOutput))
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+
+    if (sizeof(*pInput) + pInput->Message.DataLength < sizeof(*pInput))
+    {
+        return STATUS_INTEGER_OVERFLOW;
+    }
+
+    if (InputBufferSize < sizeof(*pInput) + pInput->Message.DataLength)
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+
+    *BytesWritten = sizeof(*pOutput);
+    pOutput->Reply.Status = STATUS_SUCCESS;
+    
+    PWCHAR string = malloc(pInput->Message.DataLength + sizeof(WCHAR));
+    if (!string)
+    {
+        wprintf(L"[PROC] Thread Created. BAD_ALLOC\n");
+        return STATUS_SUCCESS;
+    }
+
+    memcpy(string, &pInput->Message.Data[0], pInput->Message.DataLength);
+    string[pInput->Message.DataLength >> 1] = L'\0';
+
+    wprintf(L"%s \n", string);
+
+    free(string);
+
+    return STATUS_SUCCESS;
+}
 //
 // MsgDispatchNewMessage
 //
@@ -166,6 +220,10 @@ MsgDispatchNewMessage(
         break;
     case msgProcessTerminate:
         status = MsgHandleProcessTerminate(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);
+        break;
+
+    case msgGenericMessage:
+        status = MsgHandleGeneric(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);
         break;
     default:
         status =  MsgHandleUnknownMessage(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);

@@ -443,6 +443,15 @@ DriverEntry (
             return status;
         }
 
+        status = ThreadFltInitialize();
+        if (!NT_SUCCESS(status))
+        {
+            CommUninitializeFilterCommunicationPort();
+            FltUnregisterFilter(gDrv.FilterHandle);
+            ProcFltUninitialize();
+            return status;
+        }
+
         //
         //  Start filtering i/o
         //
@@ -469,9 +478,8 @@ MyFilterUnload (
 
     LogInfo("MyFilter!MyFilterUnload: Entered\n");
     CommUninitializeFilterCommunicationPort();
-    //if (gDrv.MonitoringStarted & notificationProcess) {
     ProcFltUninitialize();
-    //}
+    ThreadFltUninitialize();
     FltUnregisterFilter( gDrv.FilterHandle );
 
     return STATUS_SUCCESS;
