@@ -24,14 +24,14 @@ main(
         return status;
     }
 	
-	status = CmdStartMonitoring(notificationProcess);
+	status = CmdStartMonitoring(notificationProcess | notificationThread);
 	printf("Start monitoring returned status = 0x%X\n", status);
 
 	printf("Waiting for key...\n");
 	char c;
 	scanf_s("%c", &c, 1);
     
-	status = CmdStopMonitoring(notificationProcess);
+	status = CmdStopMonitoring(notificationProcess | notificationThread);
 	printf("Stop monitoring returned status = 0x%X\n", status);
 
     CommDriverUninitialize();
