@@ -37,6 +37,7 @@
   <ItemGroup>
     <ClCompile Include="ImageFilter.c" />
     <ClCompile Include="ProcessFilter.c" />
+    <ClCompile Include="RegFilter.c" />
     <ClCompile Include="ThreadFilter.c" />
     <ResourceCompile Include="MyFilter.rc" />
     <ClCompile Include="communication.c" />
@@ -271,6 +272,7 @@
     <ClInclude Include="ImageFilter.h" />
     <ClInclude Include="MyDriver.h" />
     <ClInclude Include="ProcessFilter.h" />
+    <ClInclude Include="RegFilter.h" />
     <ClInclude Include="ThreadFilter.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>

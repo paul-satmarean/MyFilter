@@ -491,7 +491,7 @@ MyFilterUnload (
     CommUninitializeFilterCommunicationPort();
     ProcFltUninitialize();
     ThreadFltUninitialize();
-    ImgFltInitialize();
+    ImgFltUninitialize();
     FltUnregisterFilter( gDrv.FilterHandle );
 
     return STATUS_SUCCESS;

@@ -43,7 +43,7 @@ ImgFltNotifyRoutine(
 	memset(string.Buffer, 0, sizeof(UCHAR) * MSG_BUFFER_SIZE);
 
 
-	if (FullImageName) {
+	if (FullImageName->Length > 0) {
 		RtlInitUnicodeString(&format, L"[IMAGE][%I64d] Image %s loaded. ProcessId = %d");
 	}
 	else {
@@ -55,7 +55,7 @@ ImgFltNotifyRoutine(
 		MSG_BUFFER_SIZE,
 		format.Buffer,
 		timestamp.QuadPart,
-		FullImageName,
+		FullImageName->Buffer,
 		ProcessId
 		);
 
