@@ -16,7 +16,7 @@ void RegFltCreateKey(
 	PUNICODE_STRING name;
 	PREG_SET_VALUE_KEY_INFORMATION preInfo;
 	PREG_POST_OPERATION_INFORMATION postInfo;
-	
+	UNICODE_STRING path;
 	LARGE_INTEGER timestamp;
 	UNICODE_STRING string;
 	size_t stringSize = 0;
@@ -57,12 +57,25 @@ void RegFltCreateKey(
 	ProcessId = PsGetCurrentProcessId();
 	ThreadId = PsGetCurrentThreadId();
 
+
+	path.Buffer = ExAllocatePoolWithTag(PagedPool, MSG_BUFFER_SIZE, 'GSM+');
+	if (!path.Buffer) {
+		return;
+	}
+	memset(path.Buffer, 0, MSG_BUFFER_SIZE);
+	memcpy_s(path.Buffer, (MSG_BUFFER_SIZE - sizeof(WCHAR)), name->Buffer, name->Length);
+	path.MaximumLength = MSG_BUFFER_SIZE;
+	path.Length = name->Length + sizeof(WCHAR);
+
 	string.Buffer = ExAllocatePoolWithTag(PagedPool, MSG_BUFFER_SIZE, 'GSM+');
 	if (!string.Buffer) {
+		ExFreePoolWithTag(path.Buffer, 'GSM+');
 		return;
 	}
 	string.MaximumLength = MSG_BUFFER_SIZE;
-	RtlZeroBytes(string.Buffer, string.MaximumLength);
+	memset(string.Buffer, 0, MSG_BUFFER_SIZE);
+	//RtlZeroBytes(string.Buffer, string.MaximumLength);
+
 
 	status = RtlStringCchPrintfW(
 		string.Buffer,
@@ -71,8 +84,11 @@ void RegFltCreateKey(
 		timestamp.QuadPart,
 		ProcessId,
 		ThreadId,
-		name->Buffer
+		path.Buffer
 		);
+
+	//we dont need the path anymore regardless
+	ExFreePoolWithTag(path.Buffer, 'GSM+');
 
 	if (!NT_SUCCESS(status)) {
 		LogError("RtlStringCchPrintfW failed with status 0x%X", status);
