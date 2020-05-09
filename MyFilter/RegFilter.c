@@ -131,10 +131,6 @@ RegFltCallback(
 	if ((gDrv.MonitoringStarted & notificationRegistry) == 0) {
 		return STATUS_SUCCESS;
 	}
-
-	
-
-
 	switch ((REG_NOTIFY_CLASS)((ULONG_PTR)Argument1)) {
 
 		case RegNtPostCreateKey:

@@ -9,6 +9,7 @@
 #include "ProcessFilter.h"
 #include "ThreadFilter.h"
 #include "ImageFilter.h"
+#include "RegFilter.h"
 #include "CommShared.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
@@ -463,6 +464,17 @@ DriverEntry (
             return status;
         }
 
+        status = RegFltInitialize();
+        if (!NT_SUCCESS(status))
+        {
+            CommUninitializeFilterCommunicationPort();
+            FltUnregisterFilter(gDrv.FilterHandle);
+            ProcFltUninitialize();
+            ThreadFltUninitialize();
+            ImgFltUninitialize();
+            return status;
+        }
+
         //
         //  Start filtering i/o
         //
@@ -492,6 +504,7 @@ MyFilterUnload (
     ProcFltUninitialize();
     ThreadFltUninitialize();
     ImgFltUninitialize();
+    RegFltUninitialize();
     FltUnregisterFilter( gDrv.FilterHandle );
 
     return STATUS_SUCCESS;
