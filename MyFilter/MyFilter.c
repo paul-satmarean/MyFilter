@@ -10,6 +10,7 @@
 #include "ThreadFilter.h"
 #include "ImageFilter.h"
 #include "RegFilter.h"
+#include <ntstrsafe.h>
 #include "CommShared.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
@@ -102,13 +103,7 @@ MyFilterPreOperationNoPostOperation (
 
 CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
 
-#if 0 // TODO - List all of the requests to filter.
     { IRP_MJ_CREATE,
-      0,
-      MyFilterPreOperation,
-      MyFilterPostOperation },
-
-    { IRP_MJ_CREATE_NAMED_PIPE,
       0,
       MyFilterPreOperation,
       MyFilterPostOperation },
@@ -124,6 +119,13 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
       MyFilterPostOperation },
 
     { IRP_MJ_WRITE,
+      0,
+      MyFilterPreOperation,
+      MyFilterPostOperation },
+
+#if 0 // TODO - List all of the requests to filter.
+
+    { IRP_MJ_CREATE_NAMED_PIPE,
       0,
       MyFilterPreOperation,
       MyFilterPostOperation },
@@ -425,77 +427,77 @@ DriverEntry (
 
     FLT_ASSERT( NT_SUCCESS( status ) );
 
-    if (NT_SUCCESS( status )) 
-    {
-        //
-        //  Prepare communication layer
-        //
-        status = CommInitializeFilterCommunicationPort();
-        if (!NT_SUCCESS(status)) {
+if (NT_SUCCESS(status))
+{
+    //
+    //  Prepare communication layer
+    //
+    status = CommInitializeFilterCommunicationPort();
+    if (!NT_SUCCESS(status)) {
 
-            FltUnregisterFilter(gDrv.FilterHandle);
-            return status;
-        }
-
-        status = ProcFltInitialize();
-        if (!NT_SUCCESS(status))
-        {
-            CommUninitializeFilterCommunicationPort();
-            FltUnregisterFilter(gDrv.FilterHandle);
-            return status;
-        }
-
-        status = ThreadFltInitialize();
-        if (!NT_SUCCESS(status))
-        {
-            CommUninitializeFilterCommunicationPort();
-            FltUnregisterFilter(gDrv.FilterHandle);
-            ProcFltUninitialize();
-            return status;
-        }
-
-        status = ImgFltInitialize();
-        if (!NT_SUCCESS(status))
-        {
-            CommUninitializeFilterCommunicationPort();
-            FltUnregisterFilter(gDrv.FilterHandle);
-            ProcFltUninitialize();
-            ThreadFltUninitialize();
-            return status;
-        }
-
-        status = RegFltInitialize();
-        if (!NT_SUCCESS(status))
-        {
-            CommUninitializeFilterCommunicationPort();
-            FltUnregisterFilter(gDrv.FilterHandle);
-            ProcFltUninitialize();
-            ThreadFltUninitialize();
-            ImgFltUninitialize();
-            return status;
-        }
-
-        //
-        //  Start filtering i/o
-        //
-        status = FltStartFiltering( gDrv.FilterHandle );
-        if (!NT_SUCCESS( status ))
-        {
-            CommUninitializeFilterCommunicationPort();
-            ProcFltUninitialize();
-            FltUnregisterFilter( gDrv.FilterHandle );
-        }
+        FltUnregisterFilter(gDrv.FilterHandle);
+        return status;
     }
 
-    return status;
+    status = ProcFltInitialize();
+    if (!NT_SUCCESS(status))
+    {
+        CommUninitializeFilterCommunicationPort();
+        FltUnregisterFilter(gDrv.FilterHandle);
+        return status;
+    }
+
+    status = ThreadFltInitialize();
+    if (!NT_SUCCESS(status))
+    {
+        CommUninitializeFilterCommunicationPort();
+        FltUnregisterFilter(gDrv.FilterHandle);
+        ProcFltUninitialize();
+        return status;
+    }
+
+    status = ImgFltInitialize();
+    if (!NT_SUCCESS(status))
+    {
+        CommUninitializeFilterCommunicationPort();
+        FltUnregisterFilter(gDrv.FilterHandle);
+        ProcFltUninitialize();
+        ThreadFltUninitialize();
+        return status;
+    }
+
+    status = RegFltInitialize();
+    if (!NT_SUCCESS(status))
+    {
+        CommUninitializeFilterCommunicationPort();
+        FltUnregisterFilter(gDrv.FilterHandle);
+        ProcFltUninitialize();
+        ThreadFltUninitialize();
+        ImgFltUninitialize();
+        return status;
+    }
+
+    //
+    //  Start filtering i/o
+    //
+    status = FltStartFiltering(gDrv.FilterHandle);
+    if (!NT_SUCCESS(status))
+    {
+        CommUninitializeFilterCommunicationPort();
+        ProcFltUninitialize();
+        FltUnregisterFilter(gDrv.FilterHandle);
+    }
+}
+
+return status;
 }
 
 NTSTATUS
-MyFilterUnload (
+MyFilterUnload(
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
     )
 {
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
@@ -505,7 +507,7 @@ MyFilterUnload (
     ThreadFltUninitialize();
     ImgFltUninitialize();
     RegFltUninitialize();
-    FltUnregisterFilter( gDrv.FilterHandle );
+    FltUnregisterFilter(gDrv.FilterHandle);
 
     return STATUS_SUCCESS;
 }
@@ -515,18 +517,173 @@ MyFilterUnload (
     MiniFilter callback routines.
 *************************************************************************/
 FLT_PREOP_CALLBACK_STATUS
-MyFilterPreOperation (
+MyFilterPreOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
     )
 {
-    UNREFERENCED_PARAMETER( Data );
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( CompletionContext );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
 
-    LogInfo("MyFilter!MyFilterPreOperation: Entered\n");
-    return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    if ((gDrv.MonitoringStarted & notificationFile) == 0) {
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    PMY_DRIVER_GENERIC_MESSAGE pMsg = NULL;
+    ULONG msgSize = sizeof(MY_DRIVER_GENERIC_MESSAGE);
+    MY_DRIVER_PROCESS_CREATE_MESSAGE_REPLY reply = { 0 };
+    ULONG replySize = sizeof(reply);
+    static USHORT maxStringSize = 1024;
+    size_t stringSize = 0;
+    LARGE_INTEGER timestamp;
+    NTSTATUS status;
+    BOOLEAN sendMessage = FALSE;
+    ULONG ProcessId = FltGetRequestorProcessId(Data);
+    
+    KeQuerySystemTimePrecise(&timestamp);
+
+    PWCHAR string = ExAllocatePoolWithTag(PagedPool, stringSize, 'GSM+');
+    RtlZeroBytes(string, stringSize);
+
+    if (!string) {
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+    
+    switch (Data->Iopb->MajorFunction) {
+        case IRP_MJ_CREATE:
+            status = RtlStringCchPrintfW(
+                string,
+                maxStringSize,
+                L"[MiniFilter][%I64d] File create operation by pid = %d, file = %wZ",
+                timestamp.QuadPart,
+                ProcessId,
+                &(Data->Iopb->TargetFileObject->FileName)
+                );
+
+            if (!NT_SUCCESS(status)) {
+                LogError("RtlStringCchPrintfW failed with status 0x%X", status);
+                ExFreePoolWithTag(string, 'GSM+');
+                return FLT_PREOP_SUCCESS_NO_CALLBACK;
+            }
+            sendMessage = TRUE;
+            break;
+        case IRP_MJ_CLOSE:
+            status = RtlStringCchPrintfW(
+                string,
+                maxStringSize,
+                L"[MiniFilter][%I64d] File close operation by pid = %d, file = %wZ",
+                timestamp.QuadPart,
+                ProcessId,
+                &(Data->Iopb->TargetFileObject->FileName)
+                );
+
+            if (!NT_SUCCESS(status)) {
+                LogError("RtlStringCchPrintfW failed with status 0x%X", status);
+                ExFreePoolWithTag(string, 'GSM+');
+                return FLT_PREOP_SUCCESS_NO_CALLBACK;
+            }
+            sendMessage = TRUE;
+
+            break;
+        case IRP_MJ_READ:
+            status = RtlStringCchPrintfW(
+                string,
+                maxStringSize,
+                L"[MiniFilter][%I64d] File read operation by pid = %d, file = %wZ",
+                timestamp.QuadPart,
+                ProcessId,
+                &(Data->Iopb->TargetFileObject->FileName)
+                );
+
+            if (!NT_SUCCESS(status)) {
+                LogError("RtlStringCchPrintfW failed with status 0x%X", status);
+                ExFreePoolWithTag(string, 'GSM+');
+                return FLT_PREOP_SUCCESS_NO_CALLBACK;
+            }
+            sendMessage = TRUE;
+
+            break;
+        case IRP_MJ_WRITE:
+            status = RtlStringCchPrintfW(
+                string,
+                maxStringSize,
+                L"[MiniFilter][%I64d] File write operation by pid = %d, file = %wZ",
+                timestamp.QuadPart,
+                ProcessId,
+                &(Data->Iopb->TargetFileObject->FileName)
+                );
+
+            if (!NT_SUCCESS(status)) {
+                LogError("RtlStringCchPrintfW failed with status 0x%X", status);
+                ExFreePoolWithTag(string, 'GSM+');
+                return FLT_PREOP_SUCCESS_NO_CALLBACK;
+            }
+            sendMessage = TRUE;
+
+            break;
+        case IRP_MJ_SET_INFORMATION:
+            status = RtlStringCchPrintfW(
+                string,
+                maxStringSize,
+                L"[MiniFilter][%I64d] File set attributes operation by pid = %d, file = %wZ",
+                timestamp.QuadPart,
+                ProcessId,
+                &(Data->Iopb->TargetFileObject->FileName)
+                );
+
+            if (!NT_SUCCESS(status)) {
+                LogError("RtlStringCchPrintfW failed with status 0x%X", status);
+                ExFreePoolWithTag(string, 'GSM+');
+                return FLT_PREOP_SUCCESS_NO_CALLBACK;
+            }
+            sendMessage = TRUE;
+            break;
+        default:
+            sendMessage = FALSE;
+    }
+
+    if (!sendMessage) {
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    status = RtlStringCchLengthW(
+        string,
+        maxStringSize,
+        &stringSize
+        );
+
+    if (!NT_SUCCESS(status)) {
+        LogError("RtlStringCchLengthW failed with status 0x%X", status);
+        ExFreePoolWithTag(string, 'GSM+');
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    msgSize += (ULONG)(stringSize * sizeof(WCHAR));
+
+    pMsg = ExAllocatePoolWithTag(PagedPool, msgSize, 'GSM+');
+
+    pMsg->DataLength = (USHORT)stringSize;
+    pMsg->Header.MessageCode = msgGenericMessage;
+    memcpy_s(pMsg->Data, pMsg->DataLength, string, stringSize);
+
+    status = CommSendMessage(
+        pMsg,
+        msgSize,
+        &reply,
+        &replySize
+        );
+
+    if (!NT_SUCCESS(status)) {
+        LogError("CommSendMessage failed with status = 0x%X", status);
+    }
+
+    ExFreePoolWithTag(pMsg, 'GSM+');
+    ExFreePoolWithTag(string, 'GSM+');
+
+    //LogInfo("MyFilter!MyFilterPreOperation: Entered\n");
+    //return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
 }
 
 

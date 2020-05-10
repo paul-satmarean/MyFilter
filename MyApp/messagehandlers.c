@@ -198,8 +198,6 @@ MsgHandleRegMessage(
             return STATUS_SUCCESS;
     }
 
-
-
     if (!pInput->Message.NameLength)
     {
         wprintf(
