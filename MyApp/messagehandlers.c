@@ -173,14 +173,42 @@ MsgHandleRegMessage(
     *BytesWritten = sizeof(*pOutput);
     pOutput->Reply.Status = STATUS_SUCCESS;
 
+    WCHAR* format = L"[PROC][%I64d] Registry operation by pid = %d, thread = %d ";
+
+    switch (pInput->Message.Operation)
+    {
+        case regCreateKey:
+            format = L"[PROC][%I64d] Registry key created by pid = %d, thread = %d ";
+            break;
+        case regSetValueKey:
+            format = L"[PROC][%I64d] Registry value set by pid = %d, thread = %d ";
+            break;
+        case regDeleteValueKey:
+            format = L"[PROC][%I64d] Registry value key deleted by pid = %d, thread = %d ";
+            break;
+        case regLoadKey:
+            format = L"[PROC][%I64d] Registry key loaded by pid = %d, thread = %d ";
+            break;
+        case regRenameKey:
+            format = L"[PROC][%I64d] Registry key renamed by pid = %d, thread = %d ";
+            break;
+        
+        default:
+            printf("Unimplemented registry operation.");
+            return STATUS_SUCCESS;
+    }
+
+
+
     if (!pInput->Message.NameLength)
     {
         wprintf(
-            L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = NULL\n",
+            format,
             pInput->Message.Timestamp.QuadPart, 
             pInput->Message.ProcessId,
             pInput->Message.ThreadId
             );
+        wprintf(L"\n");
         return STATUS_SUCCESS;
     }
 
@@ -188,11 +216,12 @@ MsgHandleRegMessage(
     if (!name)
     {
         wprintf(
-            L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = BAD_ALLOC\n",
+            format,
             pInput->Message.Timestamp.QuadPart,
             pInput->Message.ProcessId,
             pInput->Message.ThreadId
             );
+        wprintf(L", path = BAD_ALLOC\n");
         return STATUS_SUCCESS;
     }
 
@@ -202,12 +231,12 @@ MsgHandleRegMessage(
 
     
     wprintf(
-        L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = %s\n",
+        format,
         pInput->Message.Timestamp.QuadPart,
         pInput->Message.ProcessId,
-        pInput->Message.ThreadId,
-        name
+        pInput->Message.ThreadId
         );
+    wprintf(L", path = %s\n", name);
 
     free(name);
 
