@@ -101,9 +101,18 @@ typedef enum _MY_DRIVER_MESSAGE_CODE
     msgProcessCreate = 0,
     msgProcessTerminate = 1,
     msgGenericMessage = 2,
+    msgRegistryMessage = 3,
     msgMaxValue,
 } MY_DRIVER_MESSAGE_CODE, *PMY_DRIVER_MESSAGE_CODE;
 
+typedef enum _MY_DRIVER_REG_OP_CODE
+{
+    regCreateKey = 0, 
+    regSetValueKey = 1,
+    regDeleteValueKey = 2,
+    regLoadKey = 3,
+    regRenameKey = 4
+}MY_DRIVER_REG_OP_CODE, *PMY_DRIVER_REG_OP_CODE;
 
 /// All messages must start with FILTER_MESSAGE_HEADER
 /// All replies must start with  FILTER_REPLY_HEADER
@@ -181,6 +190,24 @@ typedef struct _MY_DRIVER_GENERIC_MESSAGE_FULL
     FILTER_MESSAGE_HEADER Header;
     MY_DRIVER_GENERIC_MESSAGE Message;
 }MY_DRIVER_GENERIC_MESSAGE_FULL, *PMY_DRIVER_GENERIC_MESSAGE_FULL;
+
+typedef struct _MY_DRIVER_REG_MESSAGE
+{
+    MY_DRIVER_MESSAGE_HEADER Header;
+
+    LARGE_INTEGER Timestamp;
+    ULONG ProcessId;
+    ULONG ThreadId;
+    MY_DRIVER_REG_OP_CODE Operation;
+    USHORT NameLength;
+    UCHAR Name[0];
+}MY_DRIVER_REG_MESSAGE, * PMY_DRIVER_REG_MESSAGE;
+
+typedef struct _MY_DRIVER_REG_MESSAGE_FULL
+{
+    FILTER_MESSAGE_HEADER Header;
+    MY_DRIVER_REG_MESSAGE Message;
+}MY_DRIVER_REG_MESSAGE_FULL, * PMY_DRIVER_REG_MESSAGE_FULL;
 
 #pragma pack(pop)
 #pragma endregion Messages

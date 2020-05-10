@@ -139,6 +139,84 @@ MsgHandleProcessTerminate(
 _Pre_satisfies_(InputBufferSize >= sizeof(FILTER_MESSAGE_HEADER))
 _Pre_satisfies_(OutputBufferSize >= sizeof(FILTER_REPLY_HEADER))
 NTSTATUS
+MsgHandleRegMessage(
+    _In_bytecount_(InputBufferSize) PFILTER_MESSAGE_HEADER InputBuffer,
+    _In_  DWORD InputBufferSize,
+    _Out_writes_bytes_to_opt_(OutputBufferSize, *BytesWritten) PFILTER_REPLY_HEADER OutputBuffer,
+    _In_  DWORD OutputBufferSize,
+    _Out_ PDWORD BytesWritten
+    )
+{
+    PMY_DRIVER_REG_MESSAGE_FULL pInput = (PMY_DRIVER_REG_MESSAGE_FULL)InputBuffer;
+    PMY_DRIVER_PROCESS_CREATE_FULL_MESSAGE_REPLY  pOutput = (PMY_DRIVER_PROCESS_CREATE_FULL_MESSAGE_REPLY)OutputBuffer;
+
+    *BytesWritten = 0;
+    if (InputBufferSize < sizeof(*pInput))
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+
+    if (OutputBufferSize < sizeof(*pOutput))
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+
+    if (sizeof(*pInput) + pInput->Message.NameLength < sizeof(*pInput))
+    {
+        return STATUS_INTEGER_OVERFLOW;
+    }
+
+    if (InputBufferSize < sizeof(*pInput) + pInput->Message.NameLength)
+    {
+        return STATUS_INVALID_USER_BUFFER;
+    }
+    *BytesWritten = sizeof(*pOutput);
+    pOutput->Reply.Status = STATUS_SUCCESS;
+
+    if (!pInput->Message.NameLength)
+    {
+        wprintf(
+            L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = NULL\n",
+            pInput->Message.Timestamp.QuadPart, 
+            pInput->Message.ProcessId,
+            pInput->Message.ThreadId
+            );
+        return STATUS_SUCCESS;
+    }
+
+    PWCHAR name = malloc(pInput->Message.NameLength + sizeof(WCHAR));
+    if (!name)
+    {
+        wprintf(
+            L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = BAD_ALLOC\n",
+            pInput->Message.Timestamp.QuadPart,
+            pInput->Message.ProcessId,
+            pInput->Message.ThreadId
+            );
+        return STATUS_SUCCESS;
+    }
+
+    memcpy(name, &pInput->Message.Name[0], pInput->Message.NameLength);
+    name[pInput->Message.NameLength >> 1] = L'\0';
+ 
+
+    
+    wprintf(
+        L"[PROC][%I64d] Registry key created by pid = %d, thread = %d , path = %s\n",
+        pInput->Message.Timestamp.QuadPart,
+        pInput->Message.ProcessId,
+        pInput->Message.ThreadId,
+        name
+        );
+
+    free(name);
+
+    return STATUS_SUCCESS;
+}
+
+_Pre_satisfies_(InputBufferSize >= sizeof(FILTER_MESSAGE_HEADER))
+_Pre_satisfies_(OutputBufferSize >= sizeof(FILTER_REPLY_HEADER))
+NTSTATUS
 MsgHandleGeneric(
     _In_bytecount_(InputBufferSize) PFILTER_MESSAGE_HEADER InputBuffer,
     _In_  DWORD InputBufferSize,
@@ -221,6 +299,8 @@ MsgDispatchNewMessage(
     case msgProcessTerminate:
         status = MsgHandleProcessTerminate(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);
         break;
+    case msgRegistryMessage:
+        status = MsgHandleRegMessage(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);
 
     case msgGenericMessage:
         status = MsgHandleGeneric(InputBuffer, InputBufferSize, OutputBuffer, OutputBufferSize, BytesWritten);

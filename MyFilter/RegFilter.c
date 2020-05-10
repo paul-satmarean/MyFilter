@@ -5,31 +5,24 @@
 #include <ntstrsafe.h>
 #include "RegFilter.tmh"
 
-#define MSG_BUFFER_SIZE 511
+#define MSG_BUFFER_SIZE 1024
 
-void RegFltCreateKey(
-	_In_opt_ PVOID Argument2
+void RegHandleOperation(
+	_In_opt_ PVOID Argument2,
+	_In_ MY_DRIVER_REG_OP_CODE OperationCode
 	)
 {
-	
 	NTSTATUS status = STATUS_SUCCESS;
 	PUNICODE_STRING name;
 	PREG_SET_VALUE_KEY_INFORMATION preInfo;
 	PREG_POST_OPERATION_INFORMATION postInfo;
-	UNICODE_STRING path;
 	LARGE_INTEGER timestamp;
-	UNICODE_STRING string;
-	size_t stringSize = 0;
-	HANDLE ProcessId;
-	HANDLE ThreadId;
-	PMY_DRIVER_GENERIC_MESSAGE pMsg = NULL;
-	ULONG msgSize = sizeof(MY_DRIVER_GENERIC_MESSAGE);
+	PMY_DRIVER_REG_MESSAGE pMsg = NULL;
+	ULONG msgSize = sizeof(MY_DRIVER_REG_MESSAGE);
 	MY_DRIVER_PROCESS_CREATE_MESSAGE_REPLY reply = { 0 };
 	ULONG replySize = sizeof(reply);
 
 	KeQuerySystemTimePrecise(&timestamp);
-	ProcessId = PsGetCurrentProcessId();
-	ThreadId = PsGetCurrentThreadId();
 
 	postInfo = (PREG_POST_OPERATION_INFORMATION)Argument2;
 	if (!NT_SUCCESS(postInfo->Status)) {
@@ -51,89 +44,37 @@ void RegFltCreateKey(
 
 	preInfo = (PREG_SET_VALUE_KEY_INFORMATION)postInfo->PreInformation;
 	NT_ASSERT(preInfo);
-	
 
-
-	ProcessId = PsGetCurrentProcessId();
-	ThreadId = PsGetCurrentThreadId();
-
-
-	path.Buffer = ExAllocatePoolWithTag(PagedPool, MSG_BUFFER_SIZE, 'GSM+');
-	if (!path.Buffer) {
-		return;
-	}
-	memset(path.Buffer, 0, MSG_BUFFER_SIZE);
-	memcpy_s(path.Buffer, (MSG_BUFFER_SIZE - sizeof(WCHAR)), name->Buffer, name->Length);
-	path.MaximumLength = MSG_BUFFER_SIZE;
-	path.Length = name->Length + sizeof(WCHAR);
-
-	string.Buffer = ExAllocatePoolWithTag(PagedPool, MSG_BUFFER_SIZE, 'GSM+');
-	if (!string.Buffer) {
-		ExFreePoolWithTag(path.Buffer, 'GSM+');
-		return;
-	}
-	string.MaximumLength = MSG_BUFFER_SIZE;
-	memset(string.Buffer, 0, MSG_BUFFER_SIZE);
-	//RtlZeroBytes(string.Buffer, string.MaximumLength);
-
-
-	status = RtlStringCchPrintfW(
-		string.Buffer,
-		MSG_BUFFER_SIZE,
-		L"[Reg][%I64d] Registry Create Key ProcessId = %d, ThreadId = %d, Path = %s",
-		timestamp.QuadPart,
-		ProcessId,
-		ThreadId,
-		path.Buffer
-		);
-
-	//we dont need the path anymore regardless
-	ExFreePoolWithTag(path.Buffer, 'GSM+');
-
-	if (!NT_SUCCESS(status)) {
-		LogError("RtlStringCchPrintfW failed with status 0x%X", status);
-		ExFreePoolWithTag(string.Buffer, 'GSM+');
-		return;
-	}
-
-	status = RtlStringCchLengthW(
-		string.Buffer,
-		MSG_BUFFER_SIZE,
-		&stringSize
-		);
-
-	if (!NT_SUCCESS(status)) {
-		LogError("RtlStringCchLengthW failed with status 0x%X", status);
-		ExFreePoolWithTag(string.Buffer, 'GSM+');
-		return;
-	}
-	stringSize = stringSize * sizeof(WCHAR);
-	msgSize += (ULONG)stringSize;
+	msgSize += name->Length;
 
 	pMsg = ExAllocatePoolWithTag(PagedPool, msgSize, 'GSM+');
 	if (!pMsg) {
-		ExFreePoolWithTag(string.Buffer, 'GSM+');
 		return;
 	}
-	pMsg->DataLength = (USHORT)stringSize;
-	memcpy(pMsg->Data, string.Buffer, stringSize);
 
-	pMsg->Header.MessageCode = msgGenericMessage;
+	pMsg->ProcessId = HandleToUlong(PsGetCurrentProcessId());
+	pMsg->ThreadId = HandleToUlong(PsGetCurrentThreadId());
+
+	pMsg->NameLength = name->Length;
+	RtlCopyMemory(pMsg->Name, name->Buffer, name->Length);
+
+	pMsg->Timestamp = timestamp;
+	pMsg->Operation = regCreateKey;
+	pMsg->Header.MessageCode = OperationCode;
+
 	status = CommSendMessage(
 		pMsg,
 		msgSize,
 		&reply,
 		&replySize
 		);
-	if (!NT_SUCCESS(status)) {
+	if (!NT_SUCCESS(status))
+	{
 		LogError("CommSendMessage failed with status = 0x%X", status);
 	}
 
 	ExFreePoolWithTag(pMsg, 'GSM+');
-	ExFreePoolWithTag(string.Buffer, 'GSM+');
 }
-
-
 
 NTSTATUS
 RegFltCallback(
@@ -150,22 +91,27 @@ RegFltCallback(
 	switch ((REG_NOTIFY_CLASS)((ULONG_PTR)Argument1)) {
 
 		case RegNtPostCreateKey:
+			RegHandleOperation(Argument2, regCreateKey);
 			break;
 
 		case RegNtPostSetValueKey:
-			RegFltCreateKey(Argument2);
+			RegHandleOperation(Argument2, regSetValueKey);
 			break;
 			
 		case RegNtPostDeleteKey:
+			RegHandleOperation(Argument2, RegNtPostDeleteKey);
 			break;
 
 		case RegNtPostDeleteValueKey:
+			RegHandleOperation(Argument2, regDeleteValueKey);
 			break;
 
 		case RegNtPostLoadKey:
+			RegHandleOperation(Argument2, regLoadKey);
 			break;
 
 		case RegNtPostRenameKey:
+			RegHandleOperation(Argument2, regRenameKey);
 			break;
 
 		default:
