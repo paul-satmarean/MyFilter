@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="FilterEngine.c" />
     <ClCompile Include="ImageFilter.c" />
     <ClCompile Include="ProcessFilter.c" />
     <ClCompile Include="RegFilter.c" />
@@ -187,7 +188,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
-      <AdditionalDependencies>fltmgr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fltmgr.lib;Fwpuclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IntegrityCheck %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ClCompile>
@@ -269,6 +270,7 @@
   <ItemGroup>
     <ClInclude Include="..\shared\CommShared.h" />
     <ClInclude Include="Communication.h" />
+    <ClInclude Include="FilterEngine.h" />
     <ClInclude Include="ImageFilter.h" />
     <ClInclude Include="MyDriver.h" />
     <ClInclude Include="ProcessFilter.h" />
