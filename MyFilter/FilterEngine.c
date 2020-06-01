@@ -3,30 +3,43 @@
 #include <fwpmk.h>
 
 
-VOID NTAPI
-AcceptClassifyFn(
-    IN const FWPS_INCOMING_VALUES0* inFixedValues,
-    IN const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
-    IN OUT VOID* layerData,
-    IN const FWPS_FILTER0* filter,
-    IN UINT64  flowContext,
-    IN OUT FWPS_CLASSIFY_OUT0* classifyOut
+//VOID NTAPI
+//AcceptClassifyFn(
+//    IN const FWPS_INCOMING_VALUES0* inFixedValues,
+//    IN const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+//    IN OUT VOID* layerData,
+//    IN const FWPS_FILTER0* filter,
+//    IN UINT64  flowContext,
+//    IN OUT FWPS_CLASSIFY_OUT0* classifyOut
+//    )
+
+
+void AcceptClassifyFn(
+    const FWPS_INCOMING_VALUES0* inFixedValues,
+    const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+    void* layerData,
+    const void * classifyContext,
+    const FWPS_FILTER3* filter,
+    UINT64 flowContext,
+    FWPS_CLASSIFY_OUT0* classifyOut
     )
 {
     UNREFERENCED_PARAMETER(inFixedValues);
     UNREFERENCED_PARAMETER(inMetaValues);
     UNREFERENCED_PARAMETER(layerData);
+    UNREFERENCED_PARAMETER(classifyContext);
     UNREFERENCED_PARAMETER(filter);
     UNREFERENCED_PARAMETER(flowContext);
     UNREFERENCED_PARAMETER(classifyOut);
 
 }
 
+
 NTSTATUS NTAPI
 AcceptNotifyFn(
     IN FWPS_CALLOUT_NOTIFY_TYPE notifyType,
     IN const GUID* filterKey,
-    IN const FWPS_FILTER0* filter
+    IN const FWPS_FILTER* filter
     )
 {
     UNREFERENCED_PARAMETER(notifyType);
@@ -50,17 +63,19 @@ AcceptFlowDeleteFn(
 
 VOID NTAPI
 ConnectClassifyFn(
-    IN const FWPS_INCOMING_VALUES0* inFixedValues,
-    IN const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
-    IN OUT VOID* layerData,
-    IN const FWPS_FILTER0* filter,
-    IN UINT64  flowContext,
-    IN OUT FWPS_CLASSIFY_OUT0* classifyOut
+    const FWPS_INCOMING_VALUES0* inFixedValues,
+    const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+    void* layerData,
+    const void* classifyContext,
+    const FWPS_FILTER3* filter,
+    UINT64 flowContext,
+    FWPS_CLASSIFY_OUT0* classifyOut
     )
 {
     UNREFERENCED_PARAMETER(inFixedValues);
     UNREFERENCED_PARAMETER(inMetaValues);
     UNREFERENCED_PARAMETER(layerData);
+    UNREFERENCED_PARAMETER(classifyContext);
     UNREFERENCED_PARAMETER(filter);
     UNREFERENCED_PARAMETER(flowContext);
     UNREFERENCED_PARAMETER(classifyOut);
@@ -116,11 +131,11 @@ ConnectFlowDeleteFn(
 //};
 
 // {D637197D-CA9B-43A9-B925-2D30A8F3DFB9}
-DEFINE_GUID(MF_INSPECT_SUBLAYER_GUID,
-    0xd637197d, 0xca9b, 0x43a9, 0xb9, 0x25, 0x2d, 0x30, 0xa8, 0xf3, 0xdf, 0xb9);
 
 
-UINT32 gCalloutId;
+
+UINT32 gAcceptCalloutId;
+UINT32 gConnectCalloutId;
 
 
 NTSTATUS
@@ -131,10 +146,14 @@ RegisterFilterCallouts(
     NTSTATUS status = STATUS_SUCCESS;
     HANDLE engineHandle = NULL;
     UNREFERENCED_PARAMETER(DeviceObject);
-
     FWPM_SUBLAYER InspectSubLayer;
-
     FWPM_SESSION session = { 0 };
+    FWPS_CALLOUT sAcceptCallout;
+    FWPM_CALLOUT mAcceptCallout;
+    FWPS_CALLOUT sConnectCallout;
+    FWPM_CALLOUT mConnectCallout;
+
+
     session.flags = FWPM_SESSION_FLAG_DYNAMIC;
     
     status = FwpmEngineOpen(
@@ -165,6 +184,65 @@ RegisterFilterCallouts(
     InspectSubLayer.displayData.description = L"Sub-Layer for use by Transport Inspect callouts";
     InspectSubLayer.flags = 0;
     InspectSubLayer.weight = 0;
+
+    status = FwpmSubLayerAdd(
+        engineHandle,
+        &InspectSubLayer, 
+        NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        KdPrint(("FwpmSubLayerAdd failed with %d", status));
+        FwpmTransactionAbort(engineHandle);
+        FwpmEngineClose(engineHandle);
+        return status;
+    }
+
+    // avem sublayer, adaugam callouts
+    RtlZeroMemory(&sAcceptCallout, sizeof(FWPS_CALLOUT));
+    RtlZeroMemory(&mAcceptCallout, sizeof(FWPM_CALLOUT));
+    RtlZeroMemory(&sConnectCallout, sizeof(FWPS_CALLOUT));
+    RtlZeroMemory(&mConnectCallout, sizeof(FWPM_CALLOUT));
+
+    sAcceptCallout.calloutKey = MF_AUTH_RECV_ACCEPT_GUID;
+    sAcceptCallout.classifyFn = AcceptClassifyFn;
+    //sAcceptCallout.flowDeleteFn = AcceptFlowDeleteFn;
+    //sAcceptCallout.notifyFn = AcceptNotifyFn;
+
+    status = FwpsCalloutRegister(
+        DeviceObject, 
+        &sAcceptCallout,
+        &gAcceptCalloutId);
+
+    if (!NT_SUCCESS(status))
+    {
+        KdPrint(("FwpsCalloutRegister failed with %d", status));
+        FwpmTransactionAbort(engineHandle);
+        FwpmEngineClose(engineHandle);
+        return status;
+    }
+
+
+    mAcceptCallout.calloutKey = MF_AUTH_RECV_ACCEPT_GUID;
+    mAcceptCallout.displayData.name = L"Transport Inspect ALE Classify Callout";
+    mAcceptCallout.displayData.description = L"Intercepts inbound or outbound connect attempts";
+    mAcceptCallout.applicableLayer = FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4;
+
+    status = FwpmCalloutAdd(engineHandle,
+        &mAcceptCallout,
+        NULL,
+        NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        KdPrint(("FwpmCalloutAdd failed with %d", status));
+        FwpsCalloutUnregisterById(gAcceptCalloutId);
+        FwpmTransactionAbort(engineHandle);
+        FwpmEngineClose(engineHandle);
+        return status;
+    }
+
+    // am adaugat primul callout, pume si filtru
 
 
 

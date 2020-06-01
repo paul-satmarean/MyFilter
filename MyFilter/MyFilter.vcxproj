@@ -188,7 +188,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
-      <AdditionalDependencies>fltmgr.lib;Fwpuclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fltmgr.lib;Fwpkclnt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IntegrityCheck %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ClCompile>

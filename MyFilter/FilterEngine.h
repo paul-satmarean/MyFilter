@@ -9,31 +9,14 @@
 #include <fwpsk.h>
 #include <guiddef.h>
 #include <fwpmk.h>
+#include <initguid.h>
 
-VOID NTAPI
-ClassifyFn(
-    IN const FWPS_INCOMING_VALUES0* inFixedValues,
-    IN const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
-    IN OUT VOID* layerData,
-    IN const FWPS_FILTER0* filter,
-    IN UINT64  flowContext,
-    IN OUT FWPS_CLASSIFY_OUT0* classifyOut
-    );
-
-NTSTATUS NTAPI
-NotifyFn(
-    IN FWPS_CALLOUT_NOTIFY_TYPE notifyType,
-    IN const GUID* filterKey,
-    IN const FWPS_FILTER0* filter
-    );
-
-VOID NTAPI
-FlowDeleteFn(
-    IN UINT16  layerId,
-    IN UINT32  calloutId,
-    IN UINT64  flowContext
-    );
-
+DEFINE_GUID(
+    MF_INSPECT_SUBLAYER_GUID,
+    0xd637197d,
+    0xca9b,
+    0x43a9,
+    0xb9, 0x25, 0x2d, 0x30, 0xa8, 0xf3, 0xdf, 0xb9);
 
 DEFINE_GUID(
     MF_AUTH_RECV_ACCEPT_GUID,
@@ -50,7 +33,5 @@ DEFINE_GUID(
     0x4e4b,
     0xaf, 0x38, 0x93, 0x83, 0xa5, 0x32, 0x93, 0x60
     );
-
-
 
 #endif
